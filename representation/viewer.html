@@ -1,0 +1,432 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<title>pirateBAY — body</title>
+<style>
+  html, body { margin: 0; height: 100%; background: #0a0d10; color: #ccd5d8; font: 12px/1.4 monospace; overflow: hidden; }
+  canvas { display: block; }
+  .panel { position: fixed; padding: 8px 10px; background: rgba(0,0,0,0.6); border: 1px solid #2a3138; border-radius: 3px; }
+  #hud         { top: 12px; left: 12px; min-width: 240px; white-space: pre; pointer-events: none; }
+  #legend      { top: 12px; right: 12px; width: 130px; }
+  #audio-panel { top: 180px; right: 12px; width: 280px; }
+  #controls    { bottom: 12px; left: 12px; display: flex; gap: 8px; flex-wrap: wrap; max-width: 60vw; }
+  #title       { bottom: 12px; right: 12px; font-weight: bold; letter-spacing: 1px; }
+  .row { display: flex; align-items: center; gap: 6px; line-height: 18px; }
+  .sw  { width: 12px; height: 12px; border-radius: 2px; }
+  button { background: #232b30; color: #ccd5d8; border: 1px solid #3a4248; padding: 4px 10px; cursor: pointer; font: inherit; }
+  button:hover  { background: #2d363c; }
+  button.active { background: #4a3a20; border-color: #6a5230; }
+  #spectrum { width: 280px; height: 160px; background: #000; border-radius: 2px; }
+  #eq { display: flex; justify-content: space-around; margin-top: 10px; }
+  .eq-band { display: flex; flex-direction: column; align-items: center; gap: 2px; font-size: 10px; opacity: 0.85; }
+  .eq-band input[type=range] {
+    -webkit-appearance: slider-vertical;
+    appearance: slider-vertical;
+    writing-mode: vertical-lr;
+    direction: rtl;
+    height: 80px;
+    width: 22px;
+    margin: 0;
+  }
+</style>
+</head>
+<body>
+<div id="hud" class="panel">hover a sphere</div>
+<div id="legend" class="panel">
+  <div><b>regions</b></div>
+  <div class="row"><div class="sw" style="background:#ffcc66"></div>HEAD</div>
+  <div class="row"><div class="sw" style="background:#66ccff"></div>BODY</div>
+  <div class="row"><div class="sw" style="background:#ff8866"></div>HIPS</div>
+  <div class="row"><div class="sw" style="background:#88ee88"></div>JOINTS</div>
+  <div class="row"><div class="sw" style="background:#cc88ff"></div>INTERACTIVE</div>
+</div>
+<div id="audio-panel" class="panel">
+  <div style="font-weight: bold; margin-bottom: 6px;">spectrometer + EQ</div>
+  <div id="spectrum"></div>
+  <div id="eq"></div>
+</div>
+<div id="controls" class="panel">
+  <button id="pulse">Pulse beat</button>
+  <button id="reset">Reset</button>
+  <button id="audio-btn">Load music</button>
+  <button id="mic-btn">Mic</button>
+  <input type="file" id="audio-file" accept="audio/*" style="display:none" />
+  <label style="display:flex; align-items:center; gap:4px; opacity:0.85;">
+    bitroar
+    <select id="roar-select" style="background:#232b30; color:#ccd5d8; border:1px solid #3a4248; font:inherit; padding:3px;">
+      <option value="pulse">pulse</option>
+      <option value="bounce">bounce</option>
+      <option value="sway">sway</option>
+      <option value="expand">expand</option>
+      <option value="shudder">shudder</option>
+      <option value="still">still</option>
+    </select>
+  </label>
+  <span id="audio-status" style="margin-left:8px; opacity:0.7">click a sphere to poke</span>
+</div>
+<div id="title" class="panel">pirateBAY</div>
+
+<script type="importmap">
+{ "imports": {
+  "three": "https://unpkg.com/three@0.160.0/build/three.module.js",
+  "three/addons/": "https://unpkg.com/three@0.160.0/examples/jsm/",
+  "audiomotion-analyzer": "https://cdn.jsdelivr.net/npm/audiomotion-analyzer@4/+esm"
+}}
+</script>
+<script type="module">
+import * as THREE from 'three';
+import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
+import AudioMotionAnalyzer from 'audiomotion-analyzer';
+
+const CELLS = [
+  {cell:0,  name:"head",        region:"HEAD",        kind:1, pos:[-0.01,1.53,0.01], parent: 1, leak:0x08/255, radius:0.12},
+  {cell:1,  name:"body",        region:"BODY",        kind:2, pos:[ 0.00,1.35,0.03], parent: 2, leak:0xA0/255, radius:0.18},
+  {cell:2,  name:"hips",        region:"HIPS",        kind:3, pos:[ 0.40,0.95,0.80], parent:-1, leak:0x10/255, radius:0.20},
+  {cell:3,  name:"lShoulder",   region:"JOINTS",      kind:4, pos:[ 0.14,1.43,0.00], parent: 1, leak:0x30/255, radius:0.10},
+  {cell:4,  name:"lElbow",      region:"JOINTS",      kind:5, pos:[ 0.25,1.07,0.11], parent: 3, leak:0x15/255, radius:0.09},
+  {cell:5,  name:"lHand",       region:"JOINTS",      kind:6, pos:[ 0.20,0.82,0.12], parent: 4, leak:0x04/255, radius:0.10},
+  {cell:6,  name:"rShoulder",   region:"JOINTS",      kind:4, pos:[-0.17,1.43,0.00], parent: 1, leak:0x30/255, radius:0.10},
+  {cell:7,  name:"rElbow",      region:"JOINTS",      kind:5, pos:[-0.29,1.10,0.10], parent: 6, leak:0x15/255, radius:0.09},
+  {cell:8,  name:"rHand",       region:"JOINTS",      kind:6, pos:[-0.24,0.88,0.10], parent: 7, leak:0x04/255, radius:0.10},
+  {cell:9,  name:"lKnee",       region:"JOINTS",      kind:7, pos:[ 0.11,0.50,0.03], parent: 2, leak:0xA0/255, radius:0.10},
+  {cell:10, name:"lFoot",       region:"JOINTS",      kind:8, pos:[ 0.11,0.00,0.08], parent: 9, leak:0xC0/255, radius:0.11},
+  {cell:11, name:"interactive", region:"INTERACTIVE", kind:9, pos:[ 0.40,3.00,0.30], parent:-1, leak:0x00/255, radius:0.05},
+];
+const INTERACTIVE_IDS = [5, 8, 11];
+const REGION_COLOR = { HEAD:0xffcc66, BODY:0x66ccff, HIPS:0xff8866, JOINTS:0x88ee88, INTERACTIVE:0xcc88ff };
+
+const scene = new THREE.Scene();
+scene.background = new THREE.Color(0x0a0d10);
+const camera = new THREE.PerspectiveCamera(50, innerWidth/innerHeight, 0.01, 100);
+camera.position.set(2.5, 1.6, 2.5);
+const renderer = new THREE.WebGLRenderer({ antialias: true });
+renderer.setSize(innerWidth, innerHeight);
+renderer.setPixelRatio(devicePixelRatio);
+document.body.appendChild(renderer.domElement);
+const controls = new OrbitControls(camera, renderer.domElement);
+controls.target.set(0, 1.0, 0);
+controls.update();
+
+scene.add(new THREE.AmbientLight(0xffffff, 0.5));
+const dir = new THREE.DirectionalLight(0xffffff, 0.7);
+dir.position.set(2, 4, 3);
+scene.add(dir);
+scene.add(new THREE.GridHelper(4, 8, 0x1c2632, 0x141c22));
+
+const meshes = [], bubbles = [];
+const pressure = new Float32Array(CELLS.length);
+
+for (const c of CELLS) {
+  const color = REGION_COLOR[c.region];
+  const mat = new THREE.MeshStandardMaterial({ color, emissive: 0x000000, roughness: 0.45 });
+  const m = new THREE.Mesh(new THREE.SphereGeometry(c.radius, 18, 12), mat);
+  m.position.set(c.pos[0], c.pos[1], c.pos[2]);
+  m.userData.id = c.cell;
+  scene.add(m);
+  meshes.push(m);
+  const b = new THREE.Mesh(
+    new THREE.SphereGeometry(c.radius * 2.2, 18, 12),
+    new THREE.MeshBasicMaterial({ color, transparent: true, opacity: 0, depthWrite: false })
+  );
+  b.position.copy(m.position);
+  scene.add(b);
+  bubbles.push(b);
+}
+
+const lineGeom = new THREE.BufferGeometry();
+const linePos = new Float32Array(CELLS.length * 2 * 3);
+lineGeom.setAttribute('position', new THREE.BufferAttribute(linePos, 3));
+scene.add(new THREE.LineSegments(lineGeom, new THREE.LineBasicMaterial({ color: 0x445058 })));
+
+function updateLines() {
+  let k = 0;
+  for (const c of CELLS) {
+    const me = meshes[c.cell].position;
+    const pa = c.parent >= 0 ? meshes[c.parent].position : me;
+    linePos[k++] = me.x; linePos[k++] = me.y; linePos[k++] = me.z;
+    linePos[k++] = pa.x; linePos[k++] = pa.y; linePos[k++] = pa.z;
+  }
+  lineGeom.attributes.position.needsUpdate = true;
+}
+updateLines();
+
+// ---------------- BITROARS ----------------
+// Context bitroar = movement function (cell, pressure, time) -> { offset, scale }.
+// Swappable from the controls dropdown. To add a new one: write the function
+// below, then add an <option value="..."> to the #roar-select element.
+const BITROARS = {
+  pulse: (c, p, t) => ({ offset: [0, 0, 0], scale: 1 + p * 0.4 }),
+
+  bounce: (c, p, t) => {
+    const amp = p * 0.08;
+    return { offset: [0, amp * Math.abs(Math.sin(t * 12)), 0], scale: 1 + p * 0.2 };
+  },
+
+  sway: (c, p, t) => {
+    const amp = p * 0.06;
+    const phase = c.cell * 0.4;
+    return { offset: [amp * Math.sin(t * 3 + phase), 0, amp * Math.cos(t * 3 + phase)], scale: 1 };
+  },
+
+  expand: (c, p, t) => {
+    // push outward along the bone (from parent toward self)
+    if (c.parent < 0) return { offset: [0, p * 0.06, 0], scale: 1 + p * 0.3 };
+    const pa = CELLS[c.parent].pos;
+    const dx = c.pos[0] - pa[0], dy = c.pos[1] - pa[1], dz = c.pos[2] - pa[2];
+    const len = Math.hypot(dx, dy, dz) || 1;
+    const amp = p * 0.15;
+    return { offset: [dx/len * amp, dy/len * amp, dz/len * amp], scale: 1 };
+  },
+
+  shudder: (c, p, t) => {
+    const r = (s) => Math.sin(t * 27 + c.cell * 11 + s) - Math.sin(t * 39 + c.cell * 7 + s);
+    const a = p * 0.05;
+    return { offset: [a * r(0), a * r(1), a * r(2)], scale: 1 + p * 0.1 };
+  },
+
+  still: () => ({ offset: [0, 0, 0], scale: 1 }),
+};
+
+let currentRoar = 'pulse';
+document.getElementById('roar-select').addEventListener('change', e => {
+  currentRoar = e.target.value;
+});
+
+const raycaster = new THREE.Raycaster();
+const ndc = new THREE.Vector2();
+let hoveredId = -1;
+renderer.domElement.addEventListener('pointermove', e => {
+  ndc.x = (e.clientX / innerWidth) * 2 - 1;
+  ndc.y = -(e.clientY / innerHeight) * 2 + 1;
+  raycaster.setFromCamera(ndc, camera);
+  const hits = raycaster.intersectObjects(meshes, false);
+  hoveredId = hits.length ? hits[0].object.userData.id : -1;
+});
+renderer.domElement.addEventListener('click', () => {
+  if (hoveredId >= 0) pressure[hoveredId] = Math.max(pressure[hoveredId], 0.8);
+});
+
+function step() {
+  const next = new Float32Array(CELLS.length);
+  for (let i = 0; i < CELLS.length; i++) {
+    const p = pressure[i];
+    if (p <= 0.001) continue;
+    const c = CELLS[i];
+    if (c.parent >= 0) {
+      const leak = p * c.leak;
+      if (leak > 0.0001) next[c.parent] = Math.max(next[c.parent], leak);
+    }
+    const decayed = p * 0.94;
+    if (decayed > 0.001) next[i] = Math.max(next[i], decayed);
+  }
+  for (let i = 0; i < CELLS.length; i++) pressure[i] = next[i];
+}
+
+let autoPulse = false, tick = 0;
+document.getElementById('pulse').addEventListener('click', e => {
+  autoPulse = !autoPulse;
+  e.target.classList.toggle('active', autoPulse);
+});
+document.getElementById('reset').addEventListener('click', () => pressure.fill(0));
+
+// ---------------- AUDIO ----------------
+// source → [biquad EQ chain] → tap → analyser (drives body) → destination
+//                                  → audioMotion spectrum
+let audioCtx = null, analyser = null, freqBuf = null, audioLabel = '';
+let eqFilters = [], spectrum = null;
+const bassHist = [];
+
+const EQ_BANDS = [
+  { name: '60',  freq: 60,    Q: 1.0 },
+  { name: '250', freq: 250,   Q: 1.0 },
+  { name: '1k',  freq: 1000,  Q: 1.0 },
+  { name: '4k',  freq: 4000,  Q: 1.0 },
+  { name: '12k', freq: 12000, Q: 1.0 },
+];
+
+(function buildEqUI() {
+  const eq = document.getElementById('eq');
+  EQ_BANDS.forEach((band, i) => {
+    const wrap = document.createElement('div');
+    wrap.className = 'eq-band';
+    const s = document.createElement('input');
+    s.type = 'range'; s.min = -12; s.max = 12; s.step = 0.5; s.value = 0;
+    s.addEventListener('input', () => {
+      const db = parseFloat(s.value);
+      if (eqFilters[i]) eqFilters[i].gain.value = db;
+      val.textContent = (db > 0 ? '+' : '') + db;
+    });
+    const label = document.createElement('div'); label.textContent = band.name;
+    const val = document.createElement('div'); val.textContent = '0';
+    wrap.append(s, label, val);
+    eq.appendChild(wrap);
+  });
+})();
+
+function buildEqChain(source) {
+  let prev = source;
+  eqFilters = EQ_BANDS.map((band) => {
+    const f = audioCtx.createBiquadFilter();
+    f.type = 'peaking';
+    f.frequency.value = band.freq;
+    f.Q.value = band.Q;
+    f.gain.value = 0;
+    prev.connect(f);
+    prev = f;
+    return f;
+  });
+  return prev; // tap node post-EQ
+}
+
+async function attachSource(source, label, fromMic) {
+  if (!audioCtx) audioCtx = new AudioContext();
+  if (audioCtx.state === 'suspended') await audioCtx.resume();
+
+  const tap = buildEqChain(source);
+
+  analyser = audioCtx.createAnalyser();
+  analyser.fftSize = 512;
+  analyser.smoothingTimeConstant = 0.3;
+  analyser.minDecibels = -90;
+  analyser.maxDecibels = -10;
+  freqBuf = new Uint8Array(analyser.frequencyBinCount);
+  tap.connect(analyser);
+
+  if (!fromMic) tap.connect(audioCtx.destination);
+
+  if (spectrum) { spectrum.destroy(); spectrum = null; }
+  spectrum = new AudioMotionAnalyzer(document.getElementById('spectrum'), {
+    audioCtx,
+    source: tap,
+    height: 160,
+    width: 280,
+    mode: 3,
+    gradient: 'rainbow',
+    showScaleX: true,
+    showScaleY: false,
+    showPeaks: true,
+    smoothing: 0.5,
+    connectSpeakers: false,
+    ledBars: false,
+  });
+
+  audioLabel = label;
+  document.getElementById('audio-status').textContent = `audio: ${label}`;
+}
+
+document.getElementById('audio-btn').addEventListener('click',
+  () => document.getElementById('audio-file').click());
+
+document.getElementById('audio-file').addEventListener('change', async (e) => {
+  const status = document.getElementById('audio-status');
+  const file = e.target.files[0];
+  if (!file) return;
+  try {
+    if (!audioCtx) audioCtx = new AudioContext();
+    if (audioCtx.state === 'suspended') await audioCtx.resume();
+    const audio = new Audio(URL.createObjectURL(file));
+    audio.loop = true;
+    const source = audioCtx.createMediaElementSource(audio);
+    await attachSource(source, file.name, false);
+    await audio.play();
+  } catch (err) {
+    status.textContent = `audio failed: ${err.message}`;
+  }
+});
+
+document.getElementById('mic-btn').addEventListener('click', async (e) => {
+  const status = document.getElementById('audio-status');
+  if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
+    status.textContent = "mic unavailable (sandboxed iframe). Open viewer.html in a browser tab.";
+    return;
+  }
+  try {
+    if (!audioCtx) audioCtx = new AudioContext();
+    const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+    const source = audioCtx.createMediaStreamSource(stream);
+    await attachSource(source, 'microphone', true);
+    e.target.classList.add('active');
+  } catch (err) {
+    status.textContent = `mic blocked: ${err.message}`;
+  }
+});
+
+function avg(buf, a, b) {
+  let s = 0; for (let i = a; i < b; i++) s += buf[i];
+  return s / Math.max(1, b - a) / 255;
+}
+
+function audioStep() {
+  if (!analyser) return;
+  analyser.getByteFrequencyData(freqBuf);
+  const n = freqBuf.length;
+  const bass   = avg(freqBuf, 0,                 Math.floor(n / 8));
+  const mid    = avg(freqBuf, Math.floor(n / 8), Math.floor(n / 2));
+  const treble = avg(freqBuf, Math.floor(n / 2), n);
+
+  pressure[5]  = Math.max(pressure[5],  Math.min(1, bass   * 1.5));
+  pressure[8]  = Math.max(pressure[8],  Math.min(1, mid    * 1.5));
+  pressure[11] = Math.max(pressure[11], Math.min(1, treble * 1.5));
+
+  bassHist.push(bass);
+  if (bassHist.length > 30) bassHist.shift();
+  const bAvg = bassHist.reduce((a, b) => a + b, 0) / bassHist.length;
+  if (bass > bAvg * 1.3 && bass > 0.15) {
+    pressure[5] = 1.0;
+    pressure[8] = 1.0;
+  }
+}
+
+const hud = document.getElementById('hud');
+function frame() {
+  if (autoPulse && tick % 30 < 5) {
+    for (const id of INTERACTIVE_IDS) pressure[id] = Math.max(pressure[id], 0.8);
+  }
+  audioStep();
+  tick++;
+  step();
+
+  const t = tick / 60;  // ~seconds at 60fps
+  const roar = BITROARS[currentRoar] || BITROARS.pulse;
+  for (let i = 0; i < CELLS.length; i++) {
+    const c = CELLS[i];
+    const p = pressure[i];
+    const m = roar(c, p, t);
+    meshes[i].position.set(c.pos[0] + m.offset[0], c.pos[1] + m.offset[1], c.pos[2] + m.offset[2]);
+    meshes[i].scale.setScalar(m.scale);
+    bubbles[i].position.copy(meshes[i].position);
+    bubbles[i].scale.setScalar(m.scale);
+    meshes[i].material.emissive.setRGB(p * 0.9, p * 0.4, 0.05);
+    bubbles[i].material.opacity = Math.min(p, 1) * 0.35;
+  }
+  updateLines();
+
+  if (hoveredId >= 0) {
+    const c = CELLS[hoveredId];
+    hud.textContent =
+`${c.name} (cell ${c.cell})
+region:    ${c.region}
+kind:      ${c.kind}
+position:  (${c.pos[0].toFixed(3)}, ${c.pos[1].toFixed(3)}, ${c.pos[2].toFixed(3)})
+parent:    ${c.parent >= 0 ? CELLS[c.parent].name : "(root)"}
+leak:      ${c.leak.toFixed(4)}
+pressure:  ${pressure[hoveredId].toFixed(3)}`;
+  } else {
+    hud.textContent = "hover a sphere";
+  }
+
+  controls.update();
+  renderer.render(scene, camera);
+  requestAnimationFrame(frame);
+}
+requestAnimationFrame(frame);
+
+addEventListener('resize', () => {
+  renderer.setSize(innerWidth, innerHeight);
+  camera.aspect = innerWidth / innerHeight;
+  camera.updateProjectionMatrix();
+});
+</script>
+</body>
+</html>

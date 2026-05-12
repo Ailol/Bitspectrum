@@ -1,0 +1,168 @@
+{
+  "source_glb": "oppression_of_t.glb",
+  "regions": [
+    "HEAD",
+    "BODY",
+    "HIPS",
+    "JOINTS",
+    "INTERACTIVE"
+  ],
+  "cells": [
+    {
+      "cell": 0,
+      "name": "head",
+      "region": "HEAD",
+      "kind": 1,
+      "glb_bone": "head",
+      "glb_node": 0,
+      "rest_position": [
+        -0.010000000000000009,
+        1.53,
+        0.010000000000000009
+      ]
+    },
+    {
+      "cell": 1,
+      "name": "body",
+      "region": "BODY",
+      "kind": 2,
+      "glb_bone": "body",
+      "glb_node": 1,
+      "rest_position": [
+        0.0,
+        1.35,
+        0.030000000000000027
+      ]
+    },
+    {
+      "cell": 2,
+      "name": "hips",
+      "region": "HIPS",
+      "kind": 3,
+      "glb_bone": "hips",
+      "glb_node": 2,
+      "rest_position": [
+        0.4,
+        0.95,
+        0.8
+      ]
+    },
+    {
+      "cell": 3,
+      "name": "lShoulder",
+      "region": "JOINTS",
+      "kind": 4,
+      "glb_bone": "lShoulder",
+      "glb_node": 3,
+      "rest_position": [
+        0.14,
+        1.43,
+        0.0
+      ]
+    },
+    {
+      "cell": 4,
+      "name": "lElbow",
+      "region": "JOINTS",
+      "kind": 5,
+      "glb_bone": "lElbow",
+      "glb_node": 4,
+      "rest_position": [
+        0.25,
+        1.07,
+        0.10999999999999999
+      ]
+    },
+    {
+      "cell": 5,
+      "name": "lHand",
+      "region": "JOINTS",
+      "kind": 6,
+      "glb_bone": "lHand",
+      "glb_node": 5,
+      "rest_position": [
+        0.2,
+        0.82,
+        0.12
+      ]
+    },
+    {
+      "cell": 6,
+      "name": "rShoulder",
+      "region": "JOINTS",
+      "kind": 4,
+      "glb_bone": "rShoulder",
+      "glb_node": 6,
+      "rest_position": [
+        -0.17000000000000004,
+        1.43,
+        0.0
+      ]
+    },
+    {
+      "cell": 7,
+      "name": "rElbow",
+      "region": "JOINTS",
+      "kind": 5,
+      "glb_bone": "rElbow",
+      "glb_node": 7,
+      "rest_position": [
+        -0.29000000000000004,
+        1.1,
+        0.10000000000000009
+      ]
+    },
+    {
+      "cell": 8,
+      "name": "rHand",
+      "region": "JOINTS",
+      "kind": 6,
+      "glb_bone": "rHand",
+      "glb_node": 8,
+      "rest_position": [
+        -0.24,
+        0.8799999999999999,
+        0.10000000000000009
+      ]
+    },
+    {
+      "cell": 9,
+      "name": "lKnee",
+      "region": "JOINTS",
+      "kind": 7,
+      "glb_bone": "lKnee",
+      "glb_node": 9,
+      "rest_position": [
+        0.11000000000000004,
+        0.49999999999999994,
+        0.030000000000000027
+      ]
+    },
+    {
+      "cell": 10,
+      "name": "lFoot",
+      "region": "JOINTS",
+      "kind": 8,
+      "glb_bone": "lFoot",
+      "glb_node": 10,
+      "rest_position": [
+        0.11000000000000004,
+        0.0,
+        0.08000000000000007
+      ]
+    },
+    {
+      "cell": 11,
+      "name": "interactive",
+      "region": "INTERACTIVE",
+      "kind": 9,
+      "glb_bone": "interactive",
+      "glb_node": 11,
+      "rest_position": [
+        0.4,
+        3.0,
+        0.3
+      ]
+    }
+  ]
+}
